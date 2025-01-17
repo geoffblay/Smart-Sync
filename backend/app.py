@@ -4,6 +4,7 @@ import os
 import requests
 import firebase_admin
 from firebase_admin import credentials, firestore
+import logging
 
 load_dotenv()
 
@@ -14,6 +15,9 @@ os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv("FIRESTORE_EMULATOR_HOST", "lo
 cred = credentials.Certificate(r"firebase-credentials.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
+
+logging.basicConfig(level=logging.INFO)  # Adjust to DEBUG for more details
+app.logger.setLevel(logging.INFO)
 
 
 # Replace with your Strava app's credentials
@@ -30,6 +34,7 @@ def connect_strava():
         f"&response_type=code"
         f"&scope=activity:read_all,activity:write"
     )
+    app.logger.info(strava_auth_url)
     return redirect(strava_auth_url)
 
 @app.route('/auth/callback')
@@ -71,6 +76,11 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
         'refresh_token': refresh_token,
         'expires_at': expires_at
     })
+
+    docs = users_ref.stream()
+    app.logger.info("Users in the database:")
+    for doc in docs:
+        app.logger.info(f'{doc.id}: {doc.to_dict()}')
 
 # preferences page
 @app.route('/preferences')
