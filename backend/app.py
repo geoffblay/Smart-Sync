@@ -3,17 +3,17 @@ from dotenv import load_dotenv
 import os
 import requests
 import firebase_admin
-from firebase_admin import credentials, firestore, connectFirestoreEmulator
+from firebase_admin import credentials, firestore
 
 load_dotenv()
 
 app = Flask(__name__)
 
-cred = credentials.Certificate("firebase-cred.json")
-firebase_admin.initialize_app(cred)
+os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv("FIRESTORE_EMULATOR_HOST", "localhost:8080")
 
+cred = credentials.Certificate(r"firebase-credentials.json")
+firebase_admin.initialize_app(cred)
 db = firestore.client()
-connectFirestoreEmulator(db, "localhost", 8080)
 
 
 # Replace with your Strava app's credentials
@@ -55,7 +55,7 @@ def auth_callback():
         access_token = token_data['access_token']
         refresh_token = token_data['refresh_token']
         expires_at = token_data['expires_at']
-        save_user_tokens(user_id, access_token, refresh_token, expires_at)
+        save_user_tokens(str(user_id), access_token, refresh_token, expires_at)
         # redirect to preferences page
         return redirect(url_for('preferences'))
     else:
@@ -65,16 +65,16 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
     # Example logic to save tokens to a database
     # Replace this with actual database code
     app.logger.info(f"Saving user {user_id} with access token {access_token}")
-    # users_ref = db.collection('users')
-    # users_ref.document(user_id).set({
-    #     'access_token': access_token,
-    #     'refresh_token': refresh_token,
-    #     'expires_at': expires_at
-    # })
+    users_ref = db.collection('users')
+    users_ref.document(user_id).set({
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'expires_at': expires_at
+    })
 
 # preferences page
 @app.route('/preferences')
-def preferences(user_id, access_token):
+def preferences():
     # list of 5 checkboxes
     return """
     <form action="/preferences" method="post">
