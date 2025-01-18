@@ -1,14 +1,19 @@
-from flask import Flask, redirect, request, url_for
+from flask import Flask, redirect, request, url_for, session
 from dotenv import load_dotenv
 import os
 import requests
 import firebase_admin
 from firebase_admin import credentials, firestore
 import logging
+from flask_session import Session
+import secrets
 
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = secrets.token_urlsafe(16)
+app.config['SESSION_TYPE'] = 'filesystem'
+Session(app)
 
 os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv("FIRESTORE_EMULATOR_HOST", "localhost:8080")
 
@@ -19,6 +24,11 @@ db = firestore.client()
 logging.basicConfig(level=logging.INFO)  # Adjust to DEBUG for more details
 app.logger.setLevel(logging.INFO)
 
+def log_database():
+    docs = db.collection('users').stream()
+    app.logger.info("Entries in the database:")
+    for doc in docs:
+        app.logger.info(f'{doc.id}: {doc.to_dict()}')
 
 # Replace with your Strava app's credentials
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
@@ -76,23 +86,35 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
         'refresh_token': refresh_token,
         'expires_at': expires_at
     })
-
-    docs = users_ref.stream()
-    app.logger.info("Users in the database:")
-    for doc in docs:
-        app.logger.info(f'{doc.id}: {doc.to_dict()}')
+    session['user_id'] = user_id
+    session['access_token'] = access_token
 
 # preferences page
-@app.route('/preferences')
+@app.route('/preferences', methods=['GET', 'POST'])
 def preferences():
-    # list of 5 checkboxes
+    if request.method == 'POST':
+        # Get selected activities from the form
+        selected_activities = request.form.getlist('activity')
+        user_id = session.get('user_id')
+        if user_id:
+            # Update user preferences in Firestore
+            users_ref = db.collection('users')
+            users_ref.document(user_id).update({
+                'activities': selected_activities
+            })
+            log_database()
+            return "Preferences updated successfully!"
+        else:
+            return "Something went wrong"
+
+    # Display the form with checkboxes
     return """
     <form action="/preferences" method="post">
         <input type="checkbox" name="activity" value="run"> Run<br>
-        <input type="checkbox" name="activity" value="ride"> Ride<br>
         <input type="checkbox" name="activity" value="swim"> Swim<br>
+        <input type="checkbox" name="activity" value="bike"> Bike<br>
+        <input type="checkbox" name="activity" value="lift"> Lift<br>
         <input type="checkbox" name="activity" value="walk"> Walk<br>
-        <input type="checkbox" name="activity" value="hike"> Hike<br>
         <input type="submit" value="Submit">
     </form>
     """
