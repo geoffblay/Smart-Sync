@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, url_for, session, render_template_string
+from flask import Flask, redirect, request, url_for, session, render_template_string, jsonify
 from dotenv import load_dotenv
 import os
 import requests
@@ -37,7 +37,8 @@ def log_database():
 # Replace with your Strava app's credentials
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
-REDIRECT_URI = "http://localhost:5001/auth/callback"  # Your redirect URI
+AUTH_REDIRECT_URI = "http://localhost:5001/auth/callback"  # Your redirect URI for auth
+WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
 
 
 @app.route("/")
@@ -45,7 +46,7 @@ def connect_strava():
     strava_auth_url = (
         f"https://www.strava.com/oauth/authorize"
         f"?client_id={STRAVA_CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
+        f"&redirect_uri={AUTH_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=activity:read_all,activity:write"
     )
@@ -115,6 +116,22 @@ def preferences():
         # Update user preferences in Firestore
         users_ref = db.collection("users")
         users_ref.document(user_id).update({"activities": selected_activities})
+
+        # https://www.strava.com/api/v3/push_subscriptions
+        # Create a webhook subscription for the user
+        access_token = session.get("access_token")
+        headers = {"Authorization": f"Bearer {access_token}"}
+        data = {
+            "client_id": STRAVA_CLIENT_ID,
+            "client_secret": STRAVA_CLIENT_SECRET,
+            "callback_url": WEBHOOK_CALLBACK_URI,
+            "verify_token": "STRAVA",
+        }
+        response = requests.post(
+            "https://www.strava.com/api/v3/push_subscriptions", headers=headers, json=data
+        )
+        app.logger.info(f"Webhook subscription response: {response.json()}")
+
         return "Preferences updated successfully!"
 
     # Retrieve current preferences from Firestore
@@ -133,6 +150,31 @@ def preferences():
     </form>
     """
     return render_template_string(form_html, activities=activities, current_preferences=current_preferences)
+
+# Webhook verification
+@app.route('/webhook', methods=['GET'])
+def verify_webhook():
+    app.logger.info("Received webhook verification request")
+    hub_mode = request.args.get('hub.mode')
+    hub_verify_token = request.args.get('hub.verify_token')
+    hub_challenge = request.args.get('hub.challenge')
+    app.logger.info(f"Received webhook verification request: {hub_mode}, {hub_verify_token}, {hub_challenge}")
+
+    # Ensure the verify_token matches "STRAVA"
+    if hub_mode == "subscribe" and hub_verify_token == "STRAVA":
+        return {"hub.challenge": hub_challenge}, 200
+    else:
+        app.logger.error(f"Webhook verification failed: {hub_verify_token}")
+        return {"error": "Invalid verify token"}, 400
+
+# Webhook event receiver
+@app.route('/webhook', methods=['POST'])
+def handle_event():
+    event = request.get_json()
+    # Handle the event (e.g., log it, update your database)
+    # print(f"Received event: {event}")
+    app.logger.info(f"Received event: {event}")
+    return '', 200
 
 
 if __name__ == "__main__":
