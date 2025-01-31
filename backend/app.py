@@ -154,11 +154,9 @@ def preferences():
 # Webhook verification
 @app.route('/webhook', methods=['GET'])
 def verify_webhook():
-    app.logger.info("Received webhook verification request")
     hub_mode = request.args.get('hub.mode')
     hub_verify_token = request.args.get('hub.verify_token')
     hub_challenge = request.args.get('hub.challenge')
-    app.logger.info(f"Received webhook verification request: {hub_mode}, {hub_verify_token}, {hub_challenge}")
 
     # Ensure the verify_token matches "STRAVA"
     if hub_mode == "subscribe" and hub_verify_token == "STRAVA":
