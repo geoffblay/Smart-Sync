@@ -169,10 +169,39 @@ def verify_webhook():
 @app.route('/webhook', methods=['POST'])
 def handle_event():
     event = request.get_json()
-    # Handle the event (e.g., log it, update your database)
-    # print(f"Received event: {event}")
     app.logger.info(f"Received event: {event}")
+
+    # Get the user ID from the event data
+    user_id = str(event.get("owner_id"))  # Convert to string to match Firestore document IDs
+
+    if not user_id:
+        app.logger.error("No user ID found in the event.")
+        return jsonify({"error": "No user ID found"}), 400
+
+    # Retrieve access token from Firestore
+    user_doc = db.collection("users").document(user_id).get()
+    if not user_doc.exists:
+        app.logger.error(f"No user found in Firestore for ID: {user_id}")
+        return jsonify({"error": "User not found"}), 400
+
+    user_data = user_doc.to_dict()
+    access_token = user_data.get("access_token")
+
+    app.logger.info(f"User ID: {user_id}, Access token: {access_token}")
+
+    if not access_token:
+        app.logger.error(f"Access token missing for user {user_id}")
+        return jsonify({"error": "Access token missing"}), 400
+
+    # Make request to fetch activity details
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(f"https://www.strava.com/api/v3/activities/{event['object_id']}", headers=headers)
+    activity = response.json()
+    
+    app.logger.info(f"Activity: {activity}")
+
     return '', 200
+
 
 
 if __name__ == "__main__":
