@@ -203,15 +203,13 @@ def preferences():
         "Yoga",
     ]
     form_html = """
-    <>
-        <h1>Which activities would you like to mute?</h1>
+        <h1>Which activities would you like to show?</h1>
         <form action="/preferences" method="post">
             {% for activity in activities %}
                 <input type="checkbox" name="activity" value="{{ activity }}" {% if activity in current_preferences %}checked{% endif %}> {{ activity.capitalize() }}<br>
             {% endfor %}
             <input type="submit" value="Submit">
         </form>
-    </>
     """
     return render_template_string(
         form_html, activities=activities, current_preferences=current_preferences
@@ -238,6 +236,9 @@ def verify_webhook():
 def handle_event():
     event = request.get_json()
     app.logger.info(f"Received event: {event}")
+    if event.get("aspect_type") != "create":
+        app.logger.info("Ignoring non-create event")
+        return "", 200
 
     # Get the user ID from the event data
     user_id = str(
@@ -257,8 +258,6 @@ def handle_event():
     user_data = user_doc.to_dict()
     access_token = user_data.get("access_token")
 
-    app.logger.info(f"User ID: {user_id}, Access token: {access_token}")
-
     if not access_token:
         app.logger.error(f"Access token missing for user {user_id}")
         return jsonify({"error": "Access token missing"}), 400
@@ -273,9 +272,8 @@ def handle_event():
 
     app.logger.info(f"Activity: {activity}")
 
-    # Check if the activity type is in the user's preferences, mute if it is
     user_activities = user_data.get("activities", [])
-    if activity["sport_type"] in user_activities:
+    if activity["sport_type"] not in user_activities:
         updatable_activity = {
         "hide_from_home": True,
         }
