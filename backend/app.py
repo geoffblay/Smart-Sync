@@ -200,6 +200,14 @@ def handle_event():
     
     app.logger.info(f"Activity: {activity}")
 
+    # mute activity
+    updatable_activity = {
+        'hide_from_home': True,
+    }
+    response = requests.put(f"https://www.strava.com/api/v3/activities/{event['object_id']}", headers=headers, json=updatable_activity)
+    app.logger.info(f"Activity muted: {response.json()}")
+
+
     return '', 200
 
 
