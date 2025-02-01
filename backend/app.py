@@ -1,4 +1,12 @@
-from flask import Flask, redirect, request, url_for, session, render_template_string, jsonify
+from flask import (
+    Flask,
+    redirect,
+    request,
+    url_for,
+    session,
+    render_template_string,
+    jsonify,
+)
 from dotenv import load_dotenv
 import os
 import requests
@@ -108,7 +116,7 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
 def preferences():
     user_id = session.get("user_id")
     if not user_id:
-        return redirect(url_for('/'))  # or another appropriate route
+        return redirect(url_for("/"))  # or another appropriate route
 
     if request.method == "POST":
         # Get selected activities from the form
@@ -128,7 +136,9 @@ def preferences():
             "verify_token": "STRAVA",
         }
         response = requests.post(
-            "https://www.strava.com/api/v3/push_subscriptions", headers=headers, json=data
+            "https://www.strava.com/api/v3/push_subscriptions",
+            headers=headers,
+            json=data,
         )
         app.logger.info(f"Webhook subscription response: {response.json()}")
 
@@ -140,23 +150,80 @@ def preferences():
     current_preferences = user_doc.to_dict().get("activities", [])
 
     # Display the form with checkboxes, pre-selecting the current preferences
-    activities = ["run", "swim", "bike", "lift", "walk"]
+    activities = [
+        "AlpineSki",
+        "BackcountrySki",
+        "Badminton",
+        "Canoeing",
+        "Crossfit",
+        "EBikeRide",
+        "Elliptical",
+        "EMountainBikeRide",
+        "Golf",
+        "GravelRide",
+        "Handcycle",
+        "HighIntensityIntervalTraining",
+        "Hike",
+        "IceSkate",
+        "InlineSkate",
+        "Kayaking",
+        "Kitesurf",
+        "MountainBikeRide",
+        "NordicSki",
+        "Pickleball",
+        "Pilates",
+        "Racquetball",
+        "Ride",
+        "RockClimbing",
+        "RollerSki",
+        "Rowing",
+        "Run",
+        "Sail",
+        "Skateboard",
+        "Snowboard",
+        "Snowshoe",
+        "Soccer",
+        "Squash",
+        "StairStepper",
+        "StandUpPaddling",
+        "Surfing",
+        "Swim",
+        "TableTennis",
+        "Tennis",
+        "TrailRun",
+        "Velomobile",
+        "VirtualRide",
+        "VirtualRow",
+        "VirtualRun",
+        "Walk",
+        "WeightTraining",
+        "Wheelchair",
+        "Windsurf",
+        "Workout",
+        "Yoga",
+    ]
     form_html = """
-    <form action="/preferences" method="post">
-        {% for activity in activities %}
-            <input type="checkbox" name="activity" value="{{ activity }}" {% if activity in current_preferences %}checked{% endif %}> {{ activity.capitalize() }}<br>
-        {% endfor %}
-        <input type="submit" value="Submit">
-    </form>
+    <>
+        <h1>Which activities would you like to mute?</h1>
+        <form action="/preferences" method="post">
+            {% for activity in activities %}
+                <input type="checkbox" name="activity" value="{{ activity }}" {% if activity in current_preferences %}checked{% endif %}> {{ activity.capitalize() }}<br>
+            {% endfor %}
+            <input type="submit" value="Submit">
+        </form>
+    </>
     """
-    return render_template_string(form_html, activities=activities, current_preferences=current_preferences)
+    return render_template_string(
+        form_html, activities=activities, current_preferences=current_preferences
+    )
+
 
 # Webhook verification
-@app.route('/webhook', methods=['GET'])
+@app.route("/webhook", methods=["GET"])
 def verify_webhook():
-    hub_mode = request.args.get('hub.mode')
-    hub_verify_token = request.args.get('hub.verify_token')
-    hub_challenge = request.args.get('hub.challenge')
+    hub_mode = request.args.get("hub.mode")
+    hub_verify_token = request.args.get("hub.verify_token")
+    hub_challenge = request.args.get("hub.challenge")
 
     # Ensure the verify_token matches "STRAVA"
     if hub_mode == "subscribe" and hub_verify_token == "STRAVA":
@@ -165,14 +232,17 @@ def verify_webhook():
         app.logger.error(f"Webhook verification failed: {hub_verify_token}")
         return {"error": "Invalid verify token"}, 400
 
+
 # Webhook event receiver
-@app.route('/webhook', methods=['POST'])
+@app.route("/webhook", methods=["POST"])
 def handle_event():
     event = request.get_json()
     app.logger.info(f"Received event: {event}")
 
     # Get the user ID from the event data
-    user_id = str(event.get("owner_id"))  # Convert to string to match Firestore document IDs
+    user_id = str(
+        event.get("owner_id")
+    )  # Convert to string to match Firestore document IDs
 
     if not user_id:
         app.logger.error("No user ID found in the event.")
@@ -195,21 +265,30 @@ def handle_event():
 
     # Make request to fetch activity details
     headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get(f"https://www.strava.com/api/v3/activities/{event['object_id']}", headers=headers)
+    response = requests.get(
+        f"https://www.strava.com/api/v3/activities/{event['object_id']}",
+        headers=headers,
+    )
     activity = response.json()
-    
+
     app.logger.info(f"Activity: {activity}")
 
-    # mute activity
-    updatable_activity = {
-        'hide_from_home': True,
-    }
-    response = requests.put(f"https://www.strava.com/api/v3/activities/{event['object_id']}", headers=headers, json=updatable_activity)
-    app.logger.info(f"Activity muted: {response.json()}")
+    # Check if the activity type is in the user's preferences, mute if it is
+    user_activities = user_data.get("activities", [])
+    if activity["sport_type"] in user_activities:
+        updatable_activity = {
+        "hide_from_home": True,
+        }
+        response = requests.put(
+            f"https://www.strava.com/api/v3/activities/{event['object_id']}",
+            headers=headers,
+            json=updatable_activity,
+        )
+        app.logger.info(f"Activity of type {activity['sport_type']} muted")
+    else:
+        app.logger.info(f"Activity of type {activity['sport_type']} not muted")
 
-
-    return '', 200
-
+    return "", 200
 
 
 if __name__ == "__main__":
