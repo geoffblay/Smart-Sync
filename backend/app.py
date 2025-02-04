@@ -6,6 +6,7 @@ from flask import (
     session,
     render_template_string,
     jsonify,
+    make_response
 )
 from dotenv import load_dotenv
 import os
@@ -15,6 +16,7 @@ from firebase_admin import credentials, firestore
 import logging
 from flask_session import Session
 import secrets
+import time
 
 load_dotenv()
 
@@ -50,7 +52,21 @@ WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # 
 
 
 @app.route("/")
+def home():
+    # create a button to connect to Strava
+    return """
+        <h1>Welcome to the Strava Webhook Example!</h1>
+        <p>Click the button below to connect to Strava and set your preferences.</p>
+        <a href="/connect"><button>Connect to Strava</button></a>
+    """
+
+
+@app.route("/connect")
 def connect_strava():
+    user_id = session.get("user_id") or request.cookies.get("user_id")
+    if user_id:
+        return redirect(url_for("preferences"))
+
     strava_auth_url = (
         f"https://www.strava.com/oauth/authorize"
         f"?client_id={STRAVA_CLIENT_ID}"
@@ -109,6 +125,10 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
     )
     session["user_id"] = user_id
     session["access_token"] = access_token
+
+    response = make_response(redirect(url_for("preferences")))
+    response.set_cookie("user_id", user_id, max_age=30 * 24 * 60 * 60, httponly=True, secure=True, samesite="None")
+    return response
 
 
 # preferences page
@@ -287,6 +307,54 @@ def handle_event():
         app.logger.info(f"Activity of type {activity['sport_type']} not muted")
 
     return "", 200
+
+def get_valid_access_token(user_id):
+    users_ref = db.collection("users")
+    user_doc = users_ref.document(user_id).get()
+
+    if not user_doc.exists:
+        return None  # User not found
+
+    user_data = user_doc.to_dict()
+    access_token = user_data.get("access_token")
+    refresh_token = user_data.get("refresh_token")
+    expires_at = user_data.get("expires_at", 0)
+
+    # If the access token is expired, refresh it
+    if time.time() >= expires_at:
+        app.logger.info(f"Refreshing expired access token for user {user_id}...")
+
+        response = requests.post(
+            "https://www.strava.com/oauth/token",
+            data={
+                "client_id": STRAVA_CLIENT_ID,
+                "client_secret": STRAVA_CLIENT_SECRET,
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token
+            }
+        )
+
+        new_token_data = response.json()
+        if "access_token" in new_token_data:
+            new_access_token = new_token_data["access_token"]
+            new_refresh_token = new_token_data["refresh_token"]
+            new_expires_at = new_token_data["expires_at"]
+
+            # Update Firestore with new tokens
+            users_ref.document(user_id).update(
+                {
+                    "access_token": new_access_token,
+                    "refresh_token": new_refresh_token,
+                    "expires_at": new_expires_at
+                }
+            )
+
+            return new_access_token
+        else:
+            return None  # Token refresh failed
+    else:
+        return access_token
+
 
 
 if __name__ == "__main__":
