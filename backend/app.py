@@ -17,6 +17,7 @@ import logging
 from flask_session import Session
 import secrets
 import time
+from functools import wraps
 
 load_dotenv()
 
@@ -55,10 +56,22 @@ WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # 
 def home():
     # create a button to connect to Strava
     return """
-        <h1>Welcome to the Strava Webhook Example!</h1>
+        <h1>Welcome to SmartSync!</h1>
         <p>Click the button below to connect to Strava and set your preferences.</p>
         <a href="/connect"><button>Connect to Strava</button></a>
     """
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_id = session.get("user_id") or request.cookies.get("user_id")
+
+        if not user_id or not get_valid_access_token(user_id):
+            return redirect(url_for("connect_strava"))  # Redirect to Strava auth
+
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 
 @app.route("/connect")
@@ -133,6 +146,7 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
 
 # preferences page
 @app.route("/preferences", methods=["GET", "POST"])
+@login_required
 def preferences():
     user_id = session.get("user_id")
     if not user_id:
@@ -354,6 +368,8 @@ def get_valid_access_token(user_id):
             return None  # Token refresh failed
     else:
         return access_token
+    
+
 
 
 
