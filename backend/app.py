@@ -6,7 +6,7 @@ from flask import (
     session,
     render_template_string,
     jsonify,
-    make_response
+    make_response,
 )
 from dotenv import load_dotenv
 import os
@@ -37,29 +37,12 @@ db = firestore.client()
 logging.basicConfig(level=logging.INFO)  # Adjust to DEBUG for more details
 app.logger.setLevel(logging.INFO)
 
-
-def log_database():
-    docs = db.collection("users").stream()
-    app.logger.info("Entries in the database:")
-    for doc in docs:
-        app.logger.info(f"{doc.id}: {doc.to_dict()}")
-
-
-# Replace with your Strava app's credentials
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
 AUTH_REDIRECT_URI = "http://localhost:5001/auth/callback"  # Your redirect URI for auth
 WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
 
-
-@app.route("/")
-def home():
-    # create a button to connect to Strava
-    return """
-        <h1>Welcome to SmartSync!</h1>
-        <p>Click the button below to connect to Strava and set your preferences.</p>
-        <a href="/connect"><button>Connect to Strava</button></a>
-    """
+# ------------------ Helper functions ------------------
 
 def login_required(f):
     @wraps(f)
@@ -72,6 +55,97 @@ def login_required(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def save_user_tokens(user_id, access_token, refresh_token, expires_at):
+    # Example logic to save tokens to a database
+    # Replace this with actual database code
+    app.logger.info(f"Saving user {user_id} with access token {access_token}")
+    users_ref = db.collection("users")
+    users_ref.document(user_id).set(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+        }
+    )
+    session["user_id"] = user_id
+    session["access_token"] = access_token
+
+    response = make_response(redirect(url_for("preferences")))
+    response.set_cookie(
+        "user_id",
+        user_id,
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        secure=True,
+        samesite="None",
+    )
+    return response
+
+
+def get_valid_access_token(user_id):
+    users_ref = db.collection("users")
+    user_doc = users_ref.document(user_id).get()
+
+    if not user_doc.exists:
+        return None  # User not found
+
+    user_data = user_doc.to_dict()
+    access_token = user_data.get("access_token")
+    refresh_token = user_data.get("refresh_token")
+    expires_at = user_data.get("expires_at", 0)
+
+    # If the access token is expired, refresh it
+    if time.time() >= expires_at:
+        app.logger.info(f"Refreshing expired access token for user {user_id}...")
+
+        response = requests.post(
+            "https://www.strava.com/oauth/token",
+            data={
+                "client_id": STRAVA_CLIENT_ID,
+                "client_secret": STRAVA_CLIENT_SECRET,
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+            },
+        )
+
+        new_token_data = response.json()
+        if "access_token" in new_token_data:
+            new_access_token = new_token_data["access_token"]
+            new_refresh_token = new_token_data["refresh_token"]
+            new_expires_at = new_token_data["expires_at"]
+
+            # Update Firestore with new tokens
+            users_ref.document(user_id).update(
+                {
+                    "access_token": new_access_token,
+                    "refresh_token": new_refresh_token,
+                    "expires_at": new_expires_at,
+                }
+            )
+
+            return new_access_token
+        else:
+            return None  # Token refresh failed
+    else:
+        return access_token
+    
+# def log_database():
+#     docs = db.collection("users").stream()
+#     app.logger.info("Entries in the database:")
+#     for doc in docs:
+#         app.logger.info(f"{doc.id}: {doc.to_dict()}")
+
+# ------------------ Routes ------------------
+
+@app.route("/")
+def home():
+    return """
+        <h1>Welcome to SmartSync!</h1>
+        <p>Click the button below to connect to Strava and set your preferences.</p>
+        <a href="/connect"><button>Connect to Strava</button></a>
+    """
 
 
 @app.route("/connect")
@@ -124,42 +198,21 @@ def auth_callback():
         return f"Error: {token_data.get('message', 'Failed to retrieve token')}"
 
 
-def save_user_tokens(user_id, access_token, refresh_token, expires_at):
-    # Example logic to save tokens to a database
-    # Replace this with actual database code
-    app.logger.info(f"Saving user {user_id} with access token {access_token}")
-    users_ref = db.collection("users")
-    users_ref.document(user_id).set(
-        {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "expires_at": expires_at,
-        }
-    )
-    session["user_id"] = user_id
-    session["access_token"] = access_token
-
-    response = make_response(redirect(url_for("preferences")))
-    response.set_cookie("user_id", user_id, max_age=30 * 24 * 60 * 60, httponly=True, secure=True, samesite="None")
-    return response
-
-
-# preferences page
 @app.route("/preferences", methods=["GET", "POST"])
 @login_required
 def preferences():
     user_id = session.get("user_id")
     if not user_id:
-        return redirect(url_for("/"))  # or another appropriate route
+        return redirect(url_for("/"))
 
     if request.method == "POST":
         # Get selected activities from the form
         selected_activities = request.form.getlist("activity")
+        
         # Update user preferences in Firestore
         users_ref = db.collection("users")
         users_ref.document(user_id).update({"activities": selected_activities})
 
-        # https://www.strava.com/api/v3/push_subscriptions
         # Create a webhook subscription for the user
         access_token = session.get("access_token")
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -277,7 +330,7 @@ def handle_event():
     # Get the user ID from the event data
     user_id = str(
         event.get("owner_id")
-    )  # Convert to string to match Firestore document IDs
+    )
 
     if not user_id:
         app.logger.error("No user ID found in the event.")
@@ -309,7 +362,7 @@ def handle_event():
     user_activities = user_data.get("activities", [])
     if activity["sport_type"] not in user_activities:
         updatable_activity = {
-        "hide_from_home": True,
+            "hide_from_home": True,
         }
         response = requests.put(
             f"https://www.strava.com/api/v3/activities/{event['object_id']}",
@@ -321,56 +374,6 @@ def handle_event():
         app.logger.info(f"Activity of type {activity['sport_type']} not muted")
 
     return "", 200
-
-def get_valid_access_token(user_id):
-    users_ref = db.collection("users")
-    user_doc = users_ref.document(user_id).get()
-
-    if not user_doc.exists:
-        return None  # User not found
-
-    user_data = user_doc.to_dict()
-    access_token = user_data.get("access_token")
-    refresh_token = user_data.get("refresh_token")
-    expires_at = user_data.get("expires_at", 0)
-
-    # If the access token is expired, refresh it
-    if time.time() >= expires_at:
-        app.logger.info(f"Refreshing expired access token for user {user_id}...")
-
-        response = requests.post(
-            "https://www.strava.com/oauth/token",
-            data={
-                "client_id": STRAVA_CLIENT_ID,
-                "client_secret": STRAVA_CLIENT_SECRET,
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token
-            }
-        )
-
-        new_token_data = response.json()
-        if "access_token" in new_token_data:
-            new_access_token = new_token_data["access_token"]
-            new_refresh_token = new_token_data["refresh_token"]
-            new_expires_at = new_token_data["expires_at"]
-
-            # Update Firestore with new tokens
-            users_ref.document(user_id).update(
-                {
-                    "access_token": new_access_token,
-                    "refresh_token": new_refresh_token,
-                    "expires_at": new_expires_at
-                }
-            )
-
-            return new_access_token
-        else:
-            return None  # Token refresh failed
-    else:
-        return access_token
-    
-
-
 
 
 if __name__ == "__main__":
