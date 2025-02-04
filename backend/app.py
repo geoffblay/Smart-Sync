@@ -31,9 +31,9 @@ os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
 )
 
 path = os.path.dirname(os.path.abspath(__file__))
-cred = credentials.Certificate(os.path.join(path, "../firebase-credentials.json"))
+cred = credentials.Certificate(os.path.join(path, "firebase-credentials.json"))
 
-cred = credentials.Certificate(r"firebase-credentials.json")
+# cred = credentials.Certificate(r"firebase-credentials.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
