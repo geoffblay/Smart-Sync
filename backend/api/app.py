@@ -30,16 +30,20 @@ os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
     "FIRESTORE_EMULATOR_HOST", "localhost:8080"
 )
 
-cred = credentials.Certificate(r"../firebase-credentials.json")
+path = os.path.dirname(os.path.abspath(__file__))
+cred = credentials.Certificate(os.path.join(path, "../firebase-credentials.json"))
+
+cred = credentials.Certificate(r"firebase-credentials.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 logging.basicConfig(level=logging.INFO)  # Adjust to DEBUG for more details
 app.logger.setLevel(logging.INFO)
 
+SERVER_URL = os.getenv("SERVER_URL")
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
-AUTH_REDIRECT_URI = "http://localhost:5001/auth/callback"  # Your redirect URI for auth
+AUTH_REDIRECT_URI = SERVER_URL + "/auth/callback"  # Your redirect URI for auth
 WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
 
 # ------------------ Helper functions ------------------
