@@ -30,7 +30,7 @@ os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
     "FIRESTORE_EMULATOR_HOST", "localhost:8080"
 )
 
-cred = credentials.Certificate(r"firebase-credentials.json")
+cred = credentials.Certificate(r"../firebase-credentials.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
