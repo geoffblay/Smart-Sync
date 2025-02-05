@@ -27,7 +27,7 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
-    "FIRESTORE_EMULATOR_HOST", "localhost:8080"
+    "FIRESTORE_EMULATOR_HOST", "firestore.googleapis.com"
 )
 
 path = os.path.dirname(os.path.abspath(__file__))
