@@ -64,7 +64,6 @@ def login_required(f):
 def save_user_tokens(user_id, access_token, refresh_token, expires_at):
     # Example logic to save tokens to a database
     # Replace this with actual database code
-    app.logger.info(f"Saving user {user_id} with access token {access_token}")
     users_ref = db.collection("users")
     users_ref.document(user_id).set(
         {
@@ -165,12 +164,12 @@ def connect_strava():
         f"&response_type=code"
         f"&scope=activity:read_all,activity:write"
     )
-    app.logger.info(strava_auth_url)
     return redirect(strava_auth_url)
 
 
 @app.route("/auth/callback")
 def auth_callback():
+    app.logger.info("Received Strava auth callback")
     # Get the authorization code from the query parameters
     auth_code = request.args.get("code")
     if not auth_code:
