@@ -70,3 +70,9 @@ node_modules/
 
 # firebase credentials
 firebase-credentials.json
+
+# pycache
+__pycache__
+
+# flask session files
+flask_session
