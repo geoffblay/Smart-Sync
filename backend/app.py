@@ -175,6 +175,7 @@ def auth_callback():
     auth_code = request.args.get("code")
     if not auth_code:
         return "Authorization failed. No code provided.", 400
+    app.logger.info(f"Received auth code: {auth_code}")
 
     # Exchange the authorization code for an access token
     token_response = requests.post(
