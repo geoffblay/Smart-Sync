@@ -51,7 +51,7 @@ WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # 
 def test_firestore():
     try:
         app.logger.info("Testing Firestore connection...")
-        app.logger.info("credentials: " + str(cred))
+        # app.logger.info("credentials: " + str(cred))
         # app.logger.info("Firestore emulator host: " + os.getenv("FIRESTORE_EMULATOR_HOST"))
         db = firestore.Client()
         doc_ref = db.collection("test_collection").document("test_doc")
@@ -191,7 +191,6 @@ def auth_callback():
     auth_code = request.args.get("code")
     if not auth_code:
         return "Authorization failed. No code provided.", 400
-    app.logger.info(f"Received auth code: {auth_code}")
 
     # Exchange the authorization code for an access token
     token_response = requests.post(
@@ -203,7 +202,6 @@ def auth_callback():
             "grant_type": "authorization_code",
         },
     )
-    app.logger.info(f"Token response: {token_response.json()}")
 
     # Parse the response
     token_data = token_response.json()
@@ -215,9 +213,7 @@ def auth_callback():
         expires_at = token_data["expires_at"]
         
         app.logger.info(f"Attempting to save tokens for user {user_id}...")
-
         save_user_tokens(str(user_id), access_token, refresh_token, expires_at)
-
         app.logger.info(f"Tokens saved successfully for user {user_id}")
 
         # redirect to preferences page
@@ -342,7 +338,6 @@ def verify_webhook():
     if hub_mode == "subscribe" and hub_verify_token == "STRAVA":
         return {"hub.challenge": hub_challenge}, 200
     else:
-        app.logger.error(f"Webhook verification failed: {hub_verify_token}")
         return {"error": "Invalid verify token"}, 400
 
 
@@ -384,7 +379,6 @@ def handle_event():
         headers=headers,
     )
     activity = response.json()
-
     app.logger.info(f"Activity: {activity}")
 
     user_activities = user_data.get("activities", [])
