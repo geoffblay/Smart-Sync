@@ -50,6 +50,8 @@ WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # 
 @app.route("/test-firestore")
 def test_firestore():
     try:
+        app.logger.info("Testing Firestore connection...")
+        app.logger.info("Firestore emulator host: " + os.getenv("FIRESTORE_EMULATOR_HOST"))
         db = firestore.Client()
         doc_ref = db.collection("test_collection").document("test_doc")
         doc_ref.set({"test": "connection successful!"})
