@@ -26,9 +26,9 @@ app.secret_key = secrets.token_urlsafe(16)
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
-os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
-    "FIRESTORE_EMULATOR_HOST", "firestore.googleapis.com"
-)
+# os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
+#     "FIRESTORE_EMULATOR_HOST", "firestore.googleapis.com"
+# )
 
 path = os.path.dirname(os.path.abspath(__file__))
 cred = credentials.Certificate(os.path.join(path, "firebase-credentials.json"))
@@ -44,9 +44,23 @@ SERVER_URL = os.getenv("SERVER_URL")
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
 AUTH_REDIRECT_URI = SERVER_URL + "/auth/callback"  # Your redirect URI for auth
-WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
+# WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
+WEBHOOK_CALLBACK_URI = os.getenv("WEBHOOK_CALLBACK_URI") + "/webhook"  # Your redirect URI for webhook
 
 # ------------------ Helper functions ------------------
+@app.route("/test-firestore")
+def test_firestore():
+    try:
+        app.logger.info("Testing Firestore connection...")
+        # app.logger.info("credentials: " + str(cred))
+        # app.logger.info("Firestore emulator host: " + os.getenv("FIRESTORE_EMULATOR_HOST"))
+        db = firestore.Client()
+        doc_ref = db.collection("test_collection").document("test_doc")
+        doc_ref.set({"test": "connection successful!"})
+        doc = doc_ref.get()
+        return jsonify({"message": "✅ Firestore connected!", "data": doc.to_dict()}), 200
+    except Exception as e:
+        return jsonify({"message": "❌ Firestore connection failed", "error": str(e)}), 500
 
 def login_required(f):
     @wraps(f)
@@ -65,7 +79,9 @@ def login_required(f):
 def save_user_tokens(user_id, access_token, refresh_token, expires_at):
     # Example logic to save tokens to a database
     # Replace this with actual database code
+
     users_ref = db.collection("users")
+    app.logger.info("Retrieved users collection")
     users_ref.document(user_id).set(
         {
             "access_token": access_token,
@@ -73,6 +89,7 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
             "expires_at": expires_at,
         }
     )
+    app.logger.info(f"Saved tokens for user {user_id}")
     session["user_id"] = user_id
     session["access_token"] = access_token
 
@@ -195,7 +212,11 @@ def auth_callback():
         access_token = token_data["access_token"]
         refresh_token = token_data["refresh_token"]
         expires_at = token_data["expires_at"]
+        
+        app.logger.info(f"Attempting to save tokens for user {user_id}...")
         save_user_tokens(str(user_id), access_token, refresh_token, expires_at)
+        app.logger.info(f"Tokens saved successfully for user {user_id}")
+
         # redirect to preferences page
         return redirect(url_for("preferences"))
     else:
@@ -220,6 +241,7 @@ def preferences():
         # Create a webhook subscription for the user
         access_token = session.get("access_token")
         headers = {"Authorization": f"Bearer {access_token}"}
+        app.logger.info(f"Webhook callback URI: {WEBHOOK_CALLBACK_URI}") # *** DELETE ***
         data = {
             "client_id": STRAVA_CLIENT_ID,
             "client_secret": STRAVA_CLIENT_SECRET,
@@ -310,15 +332,16 @@ def preferences():
 # Webhook verification
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
+    app.logger.info("Verifying webhook...")
     hub_mode = request.args.get("hub.mode")
     hub_verify_token = request.args.get("hub.verify_token")
     hub_challenge = request.args.get("hub.challenge")
+    app.logger.info(f"hub_mode: {hub_mode}, hub_verify_token: {hub_verify_token}, hub_challenge: {hub_challenge}")
 
     # Ensure the verify_token matches "STRAVA"
     if hub_mode == "subscribe" and hub_verify_token == "STRAVA":
         return {"hub.challenge": hub_challenge}, 200
     else:
-        app.logger.error(f"Webhook verification failed: {hub_verify_token}")
         return {"error": "Invalid verify token"}, 400
 
 
@@ -360,7 +383,6 @@ def handle_event():
         headers=headers,
     )
     activity = response.json()
-
     app.logger.info(f"Activity: {activity}")
 
     user_activities = user_data.get("activities", [])
