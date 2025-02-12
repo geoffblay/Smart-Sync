@@ -26,9 +26,9 @@ app.secret_key = secrets.token_urlsafe(16)
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
-os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
-    "FIRESTORE_EMULATOR_HOST", "firestore.googleapis.com"
-)
+# os.environ["FIRESTORE_EMULATOR_HOST"] = os.getenv(
+#     "FIRESTORE_EMULATOR_HOST", "firestore.googleapis.com"
+# )
 
 path = os.path.dirname(os.path.abspath(__file__))
 cred = credentials.Certificate(os.path.join(path, "firebase-credentials.json"))
@@ -51,7 +51,7 @@ WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # 
 def test_firestore():
     try:
         app.logger.info("Testing Firestore connection...")
-        app.logger.info("Firestore emulator host: " + os.getenv("FIRESTORE_EMULATOR_HOST"))
+        # app.logger.info("Firestore emulator host: " + os.getenv("FIRESTORE_EMULATOR_HOST"))
         db = firestore.Client()
         doc_ref = db.collection("test_collection").document("test_doc")
         doc_ref.set({"test": "connection successful!"})
