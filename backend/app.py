@@ -44,7 +44,8 @@ SERVER_URL = os.getenv("SERVER_URL")
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
 AUTH_REDIRECT_URI = SERVER_URL + "/auth/callback"  # Your redirect URI for auth
-WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
+# WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
+WEBHOOK_CALLBACK_URI = os.getenv("WEBHOOK_CALLBACK_URI") + "/webhook"  # Your redirect URI for webhook
 
 # ------------------ Helper functions ------------------
 @app.route("/test-firestore")
