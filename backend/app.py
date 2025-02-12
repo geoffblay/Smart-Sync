@@ -197,7 +197,13 @@ def auth_callback():
         access_token = token_data["access_token"]
         refresh_token = token_data["refresh_token"]
         expires_at = token_data["expires_at"]
+        
+        app.logger.info(f"Attempting to save tokens for user {user_id}...")
+
         save_user_tokens(str(user_id), access_token, refresh_token, expires_at)
+
+        app.logger.info(f"Tokens saved successfully for user {user_id}")
+
         # redirect to preferences page
         return redirect(url_for("preferences"))
     else:
