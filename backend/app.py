@@ -47,6 +47,16 @@ AUTH_REDIRECT_URI = SERVER_URL + "/auth/callback"  # Your redirect URI for auth
 WEBHOOK_CALLBACK_URI = "https://organic-certain-joey.ngrok-free.app/webhook"  # Your redirect URI for webhook
 
 # ------------------ Helper functions ------------------
+@app.route("/test-firestore")
+def test_firestore():
+    try:
+        db = firestore.Client()
+        doc_ref = db.collection("test_collection").document("test_doc")
+        doc_ref.set({"test": "connection successful!"})
+        doc = doc_ref.get()
+        return jsonify({"message": "✅ Firestore connected!", "data": doc.to_dict()}), 200
+    except Exception as e:
+        return jsonify({"message": "❌ Firestore connection failed", "error": str(e)}), 500
 
 def login_required(f):
     @wraps(f)
