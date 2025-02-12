@@ -241,6 +241,7 @@ def preferences():
         # Create a webhook subscription for the user
         access_token = session.get("access_token")
         headers = {"Authorization": f"Bearer {access_token}"}
+        app.logger.info(f"Webhook callback URI: {WEBHOOK_CALLBACK_URI}") # *** DELETE ***
         data = {
             "client_id": STRAVA_CLIENT_ID,
             "client_secret": STRAVA_CLIENT_SECRET,
@@ -331,9 +332,11 @@ def preferences():
 # Webhook verification
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
+    app.logger.info("Verifying webhook...")
     hub_mode = request.args.get("hub.mode")
     hub_verify_token = request.args.get("hub.verify_token")
     hub_challenge = request.args.get("hub.challenge")
+    app.logger.info(f"hub_mode: {hub_mode}, hub_verify_token: {hub_verify_token}, hub_challenge: {hub_challenge}")
 
     # Ensure the verify_token matches "STRAVA"
     if hub_mode == "subscribe" and hub_verify_token == "STRAVA":
