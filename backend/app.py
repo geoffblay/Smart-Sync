@@ -65,7 +65,9 @@ def login_required(f):
 def save_user_tokens(user_id, access_token, refresh_token, expires_at):
     # Example logic to save tokens to a database
     # Replace this with actual database code
+
     users_ref = db.collection("users")
+    app.logger.info("Retrieved users collection")
     users_ref.document(user_id).set(
         {
             "access_token": access_token,
@@ -73,6 +75,7 @@ def save_user_tokens(user_id, access_token, refresh_token, expires_at):
             "expires_at": expires_at,
         }
     )
+    app.logger.info(f"Saved tokens for user {user_id}")
     session["user_id"] = user_id
     session["access_token"] = access_token
 
