@@ -54,7 +54,8 @@ def login_required(f):
         user_id = session.get("user_id") or request.cookies.get("user_id")
 
         if not user_id or not get_valid_access_token(user_id):
-            return redirect(url_for("connect_strava"))  # Redirect to Strava auth
+            app.logger.info("User not logged in. Redirecting to Strava auth...")
+            return redirect(url_for("home"))  # Redirect to Strava auth
 
         return f(*args, **kwargs)
 
@@ -154,7 +155,7 @@ def home():
 @app.route("/connect")
 def connect_strava():
     user_id = session.get("user_id") or request.cookies.get("user_id")
-    if user_id:
+    if user_id and get_valid_access_token(user_id):
         return redirect(url_for("preferences"))
 
     strava_auth_url = (
