@@ -187,6 +187,7 @@ def auth_callback():
             "grant_type": "authorization_code",
         },
     )
+    app.logger.info(f"Token response: {token_response.json()}")
 
     # Parse the response
     token_data = token_response.json()
